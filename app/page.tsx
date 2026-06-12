@@ -1,12 +1,11 @@
 "use client";
 
 import { useMemo, useRef, useState } from "react";
-import { ArrowRight, ArrowUp, ArrowDown, Loader2, X, FileSpreadsheet, Search } from "lucide-react";
+import { ArrowRight, ArrowUp, ArrowDown, Loader2, X, FileSpreadsheet, Search, Check } from "lucide-react";
 import {
   parseRawMaterials,
   parseProductTargets,
   optimizeFormulas,
-  isFiller,
   DEFAULT_EXCLUDED_MATERIALS,
   type Material,
   type TargetProduct,
@@ -135,7 +134,7 @@ export default function Home() {
   const [targets, setTargets] = useState<TargetProduct[] | null>(null);
   const [rawFileName, setRawFileName] = useState<string | null>(null);
   const [productFileName, setProductFileName] = useState<string | null>(null);
-  const [excluded, setExcluded] = useState<Set<string>>(new Set());
+  const [included, setIncluded] = useState<Set<string>>(new Set());
   const [results, setResults] = useState<ProductResult[] | null>(null);
   const [openProduct, setOpenProduct] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -159,11 +158,6 @@ export default function Home() {
     });
   }, [results, filterQuery, sortDir]);
 
-  const effectiveCount = useMemo(
-    () => (materials ? materials.filter((m) => !isFiller(m)).length : 0),
-    [materials]
-  );
-
   async function handleRawFile(file: File) {
     setError(null);
     setResults(null);
@@ -172,13 +166,8 @@ export default function Home() {
       if (parsed.length === 0) throw new Error("No materials recognised in the file.");
       setMaterials(parsed);
       setRawFileName(file.name);
-      setExcluded(
-        new Set(
-          parsed
-            .filter((m) => DEFAULT_EXCLUDED_MATERIALS.has(m.product.toUpperCase()))
-            .map((m) => m.product)
-        )
-      );
+      // Nothing is included by default — the user picks materials to use
+      setIncluded(new Set());
     } catch (err) {
       setError(`Could not read raw materials file: ${(err as Error).message}`);
     }
@@ -197,13 +186,30 @@ export default function Home() {
     }
   }
 
-  function toggleExcluded(name: string) {
-    setExcluded((prev) => {
+  function toggleIncluded(name: string) {
+    setIncluded((prev) => {
       const next = new Set(prev);
       if (next.has(name)) next.delete(name);
       else next.add(name);
       return next;
     });
+    setResults(null);
+  }
+
+  function selectAll() {
+    if (!materials) return;
+    setIncluded(
+      new Set(
+        materials
+          .filter((m) => !DEFAULT_EXCLUDED_MATERIALS.has(m.product.toUpperCase()))
+          .map((m) => m.product)
+      )
+    );
+    setResults(null);
+  }
+
+  function clearSelection() {
+    setIncluded(new Set());
     setResults(null);
   }
 
@@ -214,6 +220,9 @@ export default function Home() {
     // Let the spinner paint before the solver blocks the main thread
     setTimeout(() => {
       try {
+        const excluded = new Set(
+          materials.filter((m) => !included.has(m.product)).map((m) => m.product)
+        );
         const all: ProductResult[] = targets.map((target) => ({
           target,
           formulas: optimizeFormulas(materials, target, excluded),
@@ -233,7 +242,7 @@ export default function Home() {
     }, 50);
   }
 
-  const ready = materials !== null && targets !== null;
+  const ready = materials !== null && targets !== null && included.size >= 2;
 
   return (
     <main className="min-h-screen bg-white text-neutral-900 antialiased">
@@ -274,34 +283,46 @@ export default function Home() {
         {/* ── Materials / exclusion chips ──────────────────── */}
         {materials && (
           <section className="mb-10">
-            <div className="flex items-baseline justify-between mb-3">
+            <div className="flex items-baseline justify-between mb-3 gap-4 flex-wrap">
               <p className="text-[11px] font-medium uppercase tracking-[0.15em] text-neutral-400">
-                Materials — click to exclude
+                Materials — click to include
               </p>
               <p className="text-xs text-neutral-400">
-                {materials.length} loaded · {effectiveCount} active · {excluded.size} excluded
+                {included.size} of {materials.length} selected ·{" "}
+                <button onClick={selectAll} className="underline underline-offset-2 hover:text-neutral-900 transition-colors">
+                  Select all
+                </button>{" "}
+                ·{" "}
+                <button onClick={clearSelection} className="underline underline-offset-2 hover:text-neutral-900 transition-colors">
+                  Clear
+                </button>
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
               {materials.map((m) => {
-                const isExcluded = excluded.has(m.product);
+                const isIncluded = included.has(m.product);
                 return (
                   <button
                     key={m.product}
-                    onClick={() => toggleExcluded(m.product)}
+                    onClick={() => toggleIncluded(m.product)}
                     title={`N ${(m.n * 100).toFixed(1)}% · P ${(m.p * 100).toFixed(1)}% · K ${(m.k * 100).toFixed(1)}% · €${m.cost}/ton`}
                     className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs border transition-colors ${
-                      isExcluded
-                        ? "border-neutral-200 text-neutral-300 line-through"
-                        : "border-neutral-300 text-neutral-700 hover:border-neutral-900"
+                      isIncluded
+                        ? "border-neutral-900 bg-neutral-900 text-white"
+                        : "border-neutral-200 text-neutral-400 hover:border-neutral-500 hover:text-neutral-700"
                     }`}
                   >
+                    {isIncluded && <Check className="w-3 h-3" />}
                     {m.product}
-                    {isExcluded && <X className="w-3 h-3" />}
                   </button>
                 );
               })}
             </div>
+            {included.size > 0 && included.size < 2 && (
+              <p className="mt-3 text-xs text-neutral-400">
+                Select at least 2 materials to optimize.
+              </p>
+            )}
           </section>
         )}
 
