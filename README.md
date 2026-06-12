@@ -1,25 +1,26 @@
-# Fertilizer Formula Cost Optimizer
+# Fertilizer Cost Optimizer
 
-A Streamlit web app that finds the **lowest-cost raw-material blend** for fertilizer formulas using linear programming (`scipy.optimize.linprog`).
+A web app that finds the **lowest-cost raw-material blend** for fertilizer formulas using linear programming — entirely in the browser. No server, no upload: your price data never leaves the page.
 
-Upload a price list (Excel), set the target N-P-K composition, and the optimizer computes the cheapest combination of raw materials that meets the nutrient requirements — including handling of fillers, excluded materials, and special components (NBPT/NPPT/LIMUS).
+Built with Next.js + TypeScript; originally prototyped in Python/Streamlit with `scipy.optimize.linprog` (kept in [`streamlit-legacy/`](streamlit-legacy/) — the TypeScript port produces identical results).
 
-## Features
+## How it works
 
-- 📊 Excel price-list import with flexible column-name detection (supports Chinese/Italian/English headers)
-- 🎯 Target N-P-K composition constraints solved via linear programming
-- 💰 Per-formula cost breakdown and comparison against current recipes
-- 📥 One-click export of optimized formulas back to Excel
+1. **Upload two files** — a raw-material price list and a target-product list (Excel/CSV, flexible column-name detection for English/Chinese/Italian headers).
+2. **Toggle materials** you want to exclude with one click.
+3. **Optimize** — for every target product the solver enumerates 2–3-material combinations (plus fillers such as dolomite), solves a cost-minimizing linear program under N-P-K tolerance constraints, and ranks all feasible formulas by €/ton.
+
+Targets can be parsed straight from product names (e.g. `MIX 20-10-10 NBPT`), with special handling for NBPT/NPPT/LIMUS first components.
 
 ## Run locally
 
 ```bash
-pip install -r requirements.txt
-streamlit run app.py
+npm install
+npm run dev
 ```
 
-Then open http://localhost:8501 in your browser.
+Open http://localhost:3000.
 
 ## Tech stack
 
-Python · Streamlit · pandas · NumPy · SciPy (linprog) · openpyxl
+Next.js · TypeScript · Tailwind CSS · SheetJS (xlsx) · javascript-lp-solver
