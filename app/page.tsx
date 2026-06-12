@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useRef, useState } from "react";
-import { ArrowRight, Loader2, X, FileSpreadsheet } from "lucide-react";
+import { ArrowRight, ArrowUp, ArrowDown, Loader2, X, FileSpreadsheet, Search } from "lucide-react";
 import {
   parseRawMaterials,
   parseProductTargets,
@@ -140,6 +140,24 @@ export default function Home() {
   const [openProduct, setOpenProduct] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [filterQuery, setFilterQuery] = useState("");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+
+  const visibleResults = useMemo(() => {
+    if (!results) return null;
+    const query = filterQuery.trim().toLowerCase();
+    const filtered = query
+      ? results.filter((r) => r.target.name.toLowerCase().includes(query))
+      : results;
+    return [...filtered].sort((a, b) => {
+      const ca = a.formulas[0]?.cost;
+      const cb = b.formulas[0]?.cost;
+      if (ca === undefined && cb === undefined) return 0;
+      if (ca === undefined) return 1; // unsolved always last
+      if (cb === undefined) return -1;
+      return sortDir === "asc" ? ca - cb : cb - ca;
+    });
+  }, [results, filterQuery, sortDir]);
 
   const effectiveCount = useMemo(
     () => (materials ? materials.filter((m) => !isFiller(m)).length : 0),
@@ -312,15 +330,54 @@ export default function Home() {
         )}
 
         {/* ── Results ──────────────────────────────────────── */}
-        {results && (
+        {results && visibleResults && (
           <section className="mt-20">
-            <p className="text-[11px] font-medium uppercase tracking-[0.2em] text-neutral-400 mb-8">
+            <p className="text-[11px] font-medium uppercase tracking-[0.2em] text-neutral-400 mb-6">
               Results — {results.filter((r) => r.formulas.length > 0).length} of {results.length}{" "}
               solvable
             </p>
 
+            {/* ── Filter & sort ────────────────────────────── */}
+            <div className="flex items-center gap-6 mb-8">
+              <div className="flex-1 flex items-center gap-2 border-b border-neutral-200 focus-within:border-neutral-900 transition-colors">
+                <Search className="w-4 h-4 text-neutral-300 shrink-0" />
+                <input
+                  value={filterQuery}
+                  onChange={(e) => setFilterQuery(e.target.value)}
+                  placeholder="Filter by product name"
+                  className="w-full bg-transparent py-2 text-sm text-neutral-900 placeholder:text-neutral-300 focus:outline-none"
+                />
+                {filterQuery && (
+                  <button
+                    onClick={() => setFilterQuery("")}
+                    className="text-neutral-300 hover:text-neutral-900 transition-colors"
+                    aria-label="Clear filter"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+              <button
+                onClick={() => setSortDir((d) => (d === "asc" ? "desc" : "asc"))}
+                className="inline-flex items-center gap-1.5 text-xs text-neutral-500 hover:text-neutral-900 transition-colors shrink-0 pb-px"
+              >
+                Cost {sortDir === "asc" ? "low → high" : "high → low"}
+                {sortDir === "asc" ? (
+                  <ArrowUp className="w-3.5 h-3.5" />
+                ) : (
+                  <ArrowDown className="w-3.5 h-3.5" />
+                )}
+              </button>
+            </div>
+
+            {visibleResults.length === 0 && (
+              <p className="text-sm text-neutral-400 py-6 border-t border-neutral-200">
+                No products match “{filterQuery}”.
+              </p>
+            )}
+
             <div>
-              {results.map((r) => {
+              {visibleResults.map((r) => {
                 const solved = r.formulas.length > 0;
                 const isOpen = openProduct === r.target.name;
                 const best = r.formulas[0];
